@@ -13,10 +13,28 @@ const (
 
 	BasicStrategy    AutoCalibrateStrategy = "basic"
 	AdvancedStrategy AutoCalibrateStrategy = "advanced"
+
+	OrOperator  SetOperator = "or"
+	AndOperator SetOperator = "and"
+
+	ModeClusterBomb WordlistMode = "clusterbomb"
+	ModePitchFork   WordlistMode = "pitchfork"
+	ModeSniper      WordlistMode = "sniper"
+
+	FormatAll      OutputFormat = "all"
+	FormatJSON     OutputFormat = "json"
+	FormatEJSON    OutputFormat = "ejson"
+	FormatHTML     OutputFormat = "html"
+	FormatMarkdown OutputFormat = "md"
+	FormatCSV      OutputFormat = "csv"
+	FormatECSV     OutputFormat = "ecsv"
 )
 
 type RecursionStrategy string
 type AutoCalibrateStrategy string
+type SetOperator string
+type WordlistMode string
+type OutputFormat string
 
 type Fuzzer struct {
 	args []string
@@ -33,6 +51,16 @@ func NewFuzzer(ctx context.Context) *Fuzzer {
 
 func (f *Fuzzer) addArgs(args ...string) {
 	f.args = append(f.args, args...)
+}
+
+func (f *Fuzzer) Clone(ctx context.Context) *Fuzzer {
+	args := make([]string, len(f.args))
+	copy(args, f.args)
+
+	return &Fuzzer{
+		args: args,
+		ctx:  ctx,
+	}
 }
 
 // Headers adds the headers from each key value pair in the map
@@ -141,6 +169,31 @@ func (f *Fuzzer) Silent() *Fuzzer {
 	return f
 }
 
+func (f *Fuzzer) StopOnAllErrors() *Fuzzer {
+	f.addArgs("-sa")
+	return f
+}
+
+func (f *Fuzzer) StopOnSpuriousErrors() *Fuzzer {
+	f.addArgs("-se")
+	return f
+}
+
+func (f *Fuzzer) StopOnForbidden() *Fuzzer {
+	f.addArgs("-sf")
+	return f
+}
+
+func (f *Fuzzer) Threads(threads int) *Fuzzer {
+	f.addArgs("-t", fmt.Sprintf("%d", threads))
+	return f
+}
+
+func (f *Fuzzer) Verbose() *Fuzzer {
+	f.addArgs("-v")
+	return f
+}
+
 func (f *Fuzzer) Method(method string) *Fuzzer {
 	f.addArgs("-X", method)
 	return f
@@ -181,6 +234,16 @@ func (f *Fuzzer) MatchRegex(re string) *Fuzzer {
 	return f
 }
 
+func (f *Fuzzer) MatchTime(milliseconds int) *Fuzzer {
+	f.addArgs("-mt", fmt.Sprintf("%d", milliseconds))
+	return f
+}
+
+func (f *Fuzzer) MatchOperator(op SetOperator) *Fuzzer {
+	f.addArgs("-mmode", string(op))
+	return f
+}
+
 func (f *Fuzzer) FilterCodes(codes ...string) *Fuzzer {
 	f.addArgs("-fc", strings.Join(codes, ","))
 	return f
@@ -206,6 +269,16 @@ func (f *Fuzzer) FilterRegex(re string) *Fuzzer {
 	return f
 }
 
+func (f *Fuzzer) FilterOperator(op SetOperator) *Fuzzer {
+	f.addArgs("-fmode", string(op))
+	return f
+}
+
+func (f *Fuzzer) FilterTime(milliseconds int) *Fuzzer {
+	f.addArgs("-ft", fmt.Sprintf("%d", milliseconds))
+	return f
+}
+
 func (f *Fuzzer) Authorization(value string) *Fuzzer {
 	return f.Header("Authorization", value)
 }
@@ -216,11 +289,6 @@ func (f *Fuzzer) BearerToken(token string) *Fuzzer {
 
 func (f *Fuzzer) Proxy(proxy string) *Fuzzer {
 	f.addArgs("-x", proxy)
-	return f
-}
-
-func (f *Fuzzer) Wordlist(wordlist string) *Fuzzer {
-	f.addArgs("-w", wordlist)
 	return f
 }
 
@@ -264,7 +332,85 @@ func (f *Fuzzer) FollowRedirects() *Fuzzer {
 	return f
 }
 
+func (f *Fuzzer) DirSearchCompat() *Fuzzer {
+	f.addArgs("-D")
+	return f
+}
+
+func (f *Fuzzer) IgnoreWordlistComments() *Fuzzer {
+	f.addArgs("-ic")
+	return f
+}
+
+func (f *Fuzzer) InputCommand(cmd string) *Fuzzer {
+	f.addArgs("-input-cmd", cmd)
+	return f
+}
+
+func (f *Fuzzer) InputNum(num int) *Fuzzer {
+	f.addArgs("-input-num", fmt.Sprintf("%d", num))
+	return f
+}
+
+func (f *Fuzzer) InputShell(shell string) *Fuzzer {
+	f.addArgs("-input-shell", shell)
+	return f
+}
+
+func (f *Fuzzer) WordlistMode(mode WordlistMode) *Fuzzer {
+	f.addArgs("-mode", string(mode))
+	return f
+}
+
+func (f *Fuzzer) RawRequestFile(file string) *Fuzzer {
+	f.addArgs("-request", file)
+	return f
+}
+
+func (f *Fuzzer) RawRequestProtocol(protocol string) *Fuzzer {
+	f.addArgs("-request-proto", protocol)
+	return f
+}
+
+func (f *Fuzzer) Wordlist(wordlist string) *Fuzzer {
+	f.addArgs("-w", wordlist)
+	return f
+}
+
+func (f *Fuzzer) DebugLog(file string) *Fuzzer {
+	f.addArgs("-debug-log", file)
+	return f
+}
+
+func (f *Fuzzer) OutputFile(file string) *Fuzzer {
+	f.addArgs("-o", file)
+	return f
+}
+
+func (f *Fuzzer) OutputDir(dir string) *Fuzzer {
+	f.addArgs("-od", dir)
+	return f
+}
+
+func (f *Fuzzer) OutputFormat(format OutputFormat) *Fuzzer {
+	f.addArgs("-of", string(format))
+	return f
+}
+
+func (f *Fuzzer) NoEmptyOutput() *Fuzzer {
+	f.addArgs("-or")
+	return f
+}
+
 func (f *Fuzzer) CustomArguments(args ...string) *Fuzzer {
 	f.addArgs(args...)
 	return f
+}
+
+func (f *Fuzzer) Args() []string {
+	return f.args
+}
+
+func (f *Fuzzer) Run() (string, error) {
+	return "", nil
 }
