@@ -4,6 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/url"
+	"os"
+	"os/exec"
 	"strings"
 )
 
@@ -37,9 +41,14 @@ type WordlistMode string
 type OutputFormat string
 
 type Fuzzer struct {
-	args []string
-	// binaryPath string
-	ctx context.Context
+	args       []string
+	binaryPath string
+	ctx        context.Context
+	stdout     io.Writer
+	stderr     io.Writer
+	stdin      io.Reader
+	appendFuzz bool
+	url        string
 }
 
 func NewFuzzer(ctx context.Context) *Fuzzer {
@@ -53,14 +62,44 @@ func (f *Fuzzer) addArgs(args ...string) {
 	f.args = append(f.args, args...)
 }
 
+// Clone copies the current fuzzer to create a new one
 func (f *Fuzzer) Clone(ctx context.Context) *Fuzzer {
 	args := make([]string, len(f.args))
 	copy(args, f.args)
 
-	return &Fuzzer{
-		args: args,
-		ctx:  ctx,
-	}
+	cloned := NewFuzzer(ctx)
+	cloned.args = args
+	cloned.binaryPath = f.binaryPath
+	cloned.appendFuzz = f.appendFuzz
+	cloned.url = f.url
+
+	return cloned
+}
+
+func (f *Fuzzer) Stdout(stdout io.Writer) *Fuzzer {
+	f.stdout = stdout
+	return f
+}
+
+func (f *Fuzzer) Stderr(stderr io.Writer) *Fuzzer {
+	f.stderr = stderr
+	return f
+}
+
+func (f *Fuzzer) Stdin(stdin io.Reader) *Fuzzer {
+	f.stdin = stdin
+	return f
+}
+
+func (f *Fuzzer) BinaryPath(path string) *Fuzzer {
+	f.binaryPath = path
+	return f
+}
+
+// AutoAppendKeyword will append the keyword FUZZ to the target URL if it doesn't exist
+func (f *Fuzzer) AutoAppendKeyword() *Fuzzer {
+	f.appendFuzz = true
+	return f
 }
 
 // Headers adds the headers from each key value pair in the map
@@ -309,7 +348,7 @@ func (f *Fuzzer) PostJSON(v interface{}) *Fuzzer {
 }
 
 func (f *Fuzzer) Target(url string) *Fuzzer {
-	f.addArgs("-u", url)
+	f.url = url
 	return f
 }
 
@@ -411,6 +450,69 @@ func (f *Fuzzer) Args() []string {
 	return f.args
 }
 
-func (f *Fuzzer) Run() (string, error) {
-	return "", nil
+func (f *Fuzzer) prepareRun() (*exec.Cmd, error) {
+	if f.binaryPath == "" {
+		var err error
+		f.binaryPath, err = exec.LookPath("ffuf")
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	args := f.args
+
+	if f.appendFuzz && !strings.Contains(f.url, "FUZZ") {
+		u, err := url.JoinPath(f.url, "FUZZ")
+		if err != nil {
+			return nil, err
+		}
+
+		args = append(args, "-u", u)
+	}
+
+	cmd := exec.CommandContext(f.ctx, f.binaryPath, args...)
+	cmd.Stdout = f.stdout
+	cmd.Stderr = f.stderr
+	cmd.Stdin = f.stdin
+
+	return cmd, nil
+}
+
+func (f *Fuzzer) Run() error {
+	cmd, err := f.prepareRun()
+	if err != nil {
+		return err
+	}
+
+	if cmd.Stdout == nil {
+		cmd.Stdout = os.Stdout
+	}
+
+	if cmd.Stderr == nil {
+		cmd.Stderr = os.Stderr
+	}
+
+	if cmd.Stdin == nil {
+		cmd.Stdin = os.Stdin
+	}
+
+	return cmd.Run()
+}
+
+func (f *Fuzzer) RunWithOutput() (string, error) {
+	cmd, err := f.prepareRun()
+	if err != nil {
+		return "", err
+	}
+
+	if cmd.Stderr == nil {
+		cmd.Stderr = os.Stderr
+	}
+
+	if cmd.Stdin == nil {
+		cmd.Stdin = os.Stdin
+	}
+
+	output, err := cmd.Output()
+	return string(output), err
 }
