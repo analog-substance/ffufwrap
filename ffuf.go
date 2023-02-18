@@ -462,12 +462,18 @@ func (f *Fuzzer) prepareRun() (*exec.Cmd, error) {
 	args := f.args
 
 	if f.appendFuzz && !strings.Contains(f.url, "FUZZ") {
-		u, err := url.JoinPath(f.url, "FUZZ")
+		u, err := url.Parse(f.url)
 		if err != nil {
 			return nil, err
 		}
 
-		args = append(args, "-u", u)
+		if strings.HasSuffix(u.Path, "/") {
+			u.Path += "FUZZ"
+		} else {
+			u.Path += "/FUZZ"
+		}
+
+		args = append(args, "-u", u.String())
 	}
 
 	cmd := exec.CommandContext(f.ctx, f.binaryPath, args...)

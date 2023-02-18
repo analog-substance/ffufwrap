@@ -1,3 +1,3 @@
 module github.com/analog-substance/ffufwrap
 
-go 1.20
+go 1.17
