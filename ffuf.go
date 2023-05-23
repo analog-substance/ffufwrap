@@ -67,13 +67,16 @@ func (f *Fuzzer) Clone(ctx context.Context) *Fuzzer {
 	args := make([]string, len(f.args))
 	copy(args, f.args)
 
-	cloned := NewFuzzer(ctx)
-	cloned.args = args
-	cloned.binaryPath = f.binaryPath
-	cloned.appendFuzz = f.appendFuzz
-	cloned.url = f.url
-
-	return cloned
+	return &Fuzzer{
+		args:       args,
+		ctx:        ctx,
+		binaryPath: f.binaryPath,
+		appendFuzz: f.appendFuzz,
+		stderr:     f.stderr,
+		stdout:     f.stdout,
+		stdin:      f.stdin,
+		url:        f.url,
+	}
 }
 
 func (f *Fuzzer) Stdout(stdout io.Writer) *Fuzzer {
@@ -105,18 +108,44 @@ func (f *Fuzzer) AutoAppendKeyword() *Fuzzer {
 // Headers adds the headers from each key value pair in the map
 func (f *Fuzzer) Headers(headers map[string]string) *Fuzzer {
 	for key, value := range headers {
-		f.addArgs("-H", fmt.Sprintf("%s: %s", key, value))
+		f.Header(key, value)
 	}
 	return f
 }
 
 // Header adds the header key value pair
 func (f *Fuzzer) Header(key string, value string) *Fuzzer {
-	f.addArgs("-H", fmt.Sprintf("%s: %s", key, value))
+	return f.HeadersRaw(fmt.Sprintf("%s: %s", key, value))
+}
+
+func (f *Fuzzer) HeadersRaw(headers ...string) *Fuzzer {
+	for _, header := range headers {
+		f.addArgs("-H", header)
+	}
 	return f
 }
 
+func (f *Fuzzer) Authorization(value string) *Fuzzer {
+	return f.Header("Authorization", value)
+}
+
+func (f *Fuzzer) BearerToken(token string) *Fuzzer {
+	return f.Authorization(fmt.Sprintf("Bearer %s", token))
+}
+
+func (f *Fuzzer) UserAgent(agent string) *Fuzzer {
+	return f.Header("User-Agent", agent)
+}
+
+func (f *Fuzzer) ContentType(contentType string) *Fuzzer {
+	return f.Header("Content-Type", contentType)
+}
+
 func (f *Fuzzer) RecursionDepth(depth int) *Fuzzer {
+	if depth <= 0 {
+		return f
+	}
+
 	f.addArgs("-recursion-depth", fmt.Sprintf("%d", depth))
 	return f
 }
@@ -142,6 +171,10 @@ func (f *Fuzzer) SNI() *Fuzzer {
 }
 
 func (f *Fuzzer) Timeout(timeout int) *Fuzzer {
+	if timeout <= 0 {
+		return f
+	}
+
 	f.addArgs("-timeout", fmt.Sprintf("%d", timeout))
 	return f
 }
@@ -184,11 +217,19 @@ func (f *Fuzzer) PrintJSON() *Fuzzer {
 }
 
 func (f *Fuzzer) MaxTotalTime(max int) *Fuzzer {
+	if max < 0 {
+		return f
+	}
+
 	f.addArgs("-maxtime", fmt.Sprintf("%d", max))
 	return f
 }
 
 func (f *Fuzzer) MaxJobTime(max int) *Fuzzer {
+	if max < 0 {
+		return f
+	}
+
 	f.addArgs("-maxtime-job", fmt.Sprintf("%d", max))
 	return f
 }
@@ -199,6 +240,10 @@ func (f *Fuzzer) NonInteractive() *Fuzzer {
 }
 
 func (f *Fuzzer) RequestRate(rate int) *Fuzzer {
+	if rate < 0 {
+		return f
+	}
+
 	f.addArgs("-rate", fmt.Sprintf("%d", rate))
 	return f
 }
@@ -224,6 +269,10 @@ func (f *Fuzzer) StopOnForbidden() *Fuzzer {
 }
 
 func (f *Fuzzer) Threads(threads int) *Fuzzer {
+	if threads <= 0 {
+		return f
+	}
+
 	f.addArgs("-t", fmt.Sprintf("%d", threads))
 	return f
 }
@@ -238,42 +287,74 @@ func (f *Fuzzer) Method(method string) *Fuzzer {
 	return f
 }
 
-func (f *Fuzzer) Delay(delay int) *Fuzzer {
-	f.addArgs("-p", fmt.Sprintf("%d", delay))
+func (f *Fuzzer) Delay(delay string) *Fuzzer {
+	if delay == "" {
+		return f
+	}
+
+	f.addArgs("-p", delay)
 	return f
 }
 
 func (f *Fuzzer) Exts(exts []string) *Fuzzer {
+	if len(exts) == 0 {
+		return f
+	}
+
 	f.addArgs("-e", strings.Join(exts, ","))
 	return f
 }
 
 func (f *Fuzzer) MatchCodes(codes ...string) *Fuzzer {
+	if len(codes) == 0 {
+		return f
+	}
+
 	f.addArgs("-mc", strings.Join(codes, ","))
 	return f
 }
 
 func (f *Fuzzer) MatchLines(count int) *Fuzzer {
+	if count < 0 {
+		return f
+	}
+
 	f.addArgs("-ml", fmt.Sprintf("%d", count))
 	return f
 }
 
 func (f *Fuzzer) MatchSize(size int) *Fuzzer {
+	if size < 0 {
+		return f
+	}
+
 	f.addArgs("-ms", fmt.Sprintf("%d", size))
 	return f
 }
 
 func (f *Fuzzer) MatchWords(count int) *Fuzzer {
+	if count < 0 {
+		return f
+	}
+
 	f.addArgs("-mw", fmt.Sprintf("%d", count))
 	return f
 }
 
 func (f *Fuzzer) MatchRegex(re string) *Fuzzer {
+	if re == "" {
+		return f
+	}
+
 	f.addArgs("-mr", re)
 	return f
 }
 
 func (f *Fuzzer) MatchTime(milliseconds int) *Fuzzer {
+	if milliseconds < 0 {
+		return f
+	}
+
 	f.addArgs("-mt", fmt.Sprintf("%d", milliseconds))
 	return f
 }
@@ -284,26 +365,46 @@ func (f *Fuzzer) MatchOperator(op SetOperator) *Fuzzer {
 }
 
 func (f *Fuzzer) FilterCodes(codes ...string) *Fuzzer {
+	if len(codes) == 0 {
+		return f
+	}
+
 	f.addArgs("-fc", strings.Join(codes, ","))
 	return f
 }
 
-func (f *Fuzzer) FilterLines(count int) *Fuzzer {
-	f.addArgs("-fl", fmt.Sprintf("%d", count))
+func (f *Fuzzer) FilterLines(counts ...string) *Fuzzer {
+	if len(counts) == 0 {
+		return f
+	}
+
+	f.addArgs("-fl", strings.Join(counts, ","))
 	return f
 }
 
-func (f *Fuzzer) FilterSize(size int) *Fuzzer {
-	f.addArgs("-fs", fmt.Sprintf("%d", size))
+func (f *Fuzzer) FilterSize(sizes ...string) *Fuzzer {
+	if len(sizes) == 0 {
+		return f
+	}
+
+	f.addArgs("-fs", strings.Join(sizes, ","))
 	return f
 }
 
-func (f *Fuzzer) FilterWords(count int) *Fuzzer {
-	f.addArgs("-fw", fmt.Sprintf("%d", count))
+func (f *Fuzzer) FilterWords(counts ...string) *Fuzzer {
+	if len(counts) == 0 {
+		return f
+	}
+
+	f.addArgs("-fw", strings.Join(counts, ","))
 	return f
 }
 
 func (f *Fuzzer) FilterRegex(re string) *Fuzzer {
+	if re == "" {
+		return f
+	}
+
 	f.addArgs("-fr", re)
 	return f
 }
@@ -314,16 +415,12 @@ func (f *Fuzzer) FilterOperator(op SetOperator) *Fuzzer {
 }
 
 func (f *Fuzzer) FilterTime(milliseconds int) *Fuzzer {
+	if milliseconds < 0 {
+		return f
+	}
+
 	f.addArgs("-ft", fmt.Sprintf("%d", milliseconds))
 	return f
-}
-
-func (f *Fuzzer) Authorization(value string) *Fuzzer {
-	return f.Header("Authorization", value)
-}
-
-func (f *Fuzzer) BearerToken(token string) *Fuzzer {
-	return f.Authorization(fmt.Sprintf("Bearer %s", token))
 }
 
 func (f *Fuzzer) Proxy(proxy string) *Fuzzer {
@@ -343,6 +440,7 @@ func (f *Fuzzer) PostString(data string) *Fuzzer {
 
 func (f *Fuzzer) PostJSON(v interface{}) *Fuzzer {
 	data, _ := json.Marshal(v)
+	f.ContentType("application/json")
 	f.addArgs("-d", string(data))
 	return f
 }
@@ -350,10 +448,6 @@ func (f *Fuzzer) PostJSON(v interface{}) *Fuzzer {
 func (f *Fuzzer) Target(url string) *Fuzzer {
 	f.url = url
 	return f
-}
-
-func (f *Fuzzer) UserAgent(agent string) *Fuzzer {
-	return f.Header("User-Agent", agent)
 }
 
 func (f *Fuzzer) HTTP2() *Fuzzer {
@@ -450,7 +544,7 @@ func (f *Fuzzer) Args() []string {
 	return f.args
 }
 
-func (f *Fuzzer) prepareRun() (*exec.Cmd, error) {
+func (f *Fuzzer) prepareRun(targetURL string) (*exec.Cmd, error) {
 	if f.binaryPath == "" {
 		var err error
 		f.binaryPath, err = exec.LookPath("ffuf")
@@ -462,7 +556,7 @@ func (f *Fuzzer) prepareRun() (*exec.Cmd, error) {
 	args := f.args
 
 	if f.appendFuzz && !strings.Contains(f.url, "FUZZ") {
-		u, err := url.Parse(f.url)
+		u, err := url.Parse(targetURL)
 		if err != nil {
 			return nil, err
 		}
@@ -485,7 +579,7 @@ func (f *Fuzzer) prepareRun() (*exec.Cmd, error) {
 }
 
 func (f *Fuzzer) Run() error {
-	cmd, err := f.prepareRun()
+	cmd, err := f.prepareRun(f.url)
 	if err != nil {
 		return err
 	}
@@ -506,7 +600,7 @@ func (f *Fuzzer) Run() error {
 }
 
 func (f *Fuzzer) RunWithOutput() (string, error) {
-	cmd, err := f.prepareRun()
+	cmd, err := f.prepareRun(f.url)
 	if err != nil {
 		return "", err
 	}
