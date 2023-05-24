@@ -578,6 +578,10 @@ func (f *Fuzzer) prepareRun(targetURL string) (*exec.Cmd, error) {
 	return cmd, nil
 }
 
+func (f *Fuzzer) BuildCmd() (*exec.Cmd, error) {
+	return f.prepareRun(f.url)
+}
+
 func (f *Fuzzer) Run() error {
 	cmd, err := f.prepareRun(f.url)
 	if err != nil {
